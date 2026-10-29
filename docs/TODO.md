@@ -3,7 +3,7 @@
 Lista de trabalho do projeto. Os itens estão na ordem em que devem ser feitos, e o arquivo vai sendo atualizado
 conforme o projeto avança (itens novos entram, os concluídos são marcados).
 
-A arquitetura e o porquê das regras estão em [`docs/architecture.md`](docs/architecture.md).
+A arquitetura e o porquê das regras estão em [`architecture.md`](architecture.md).
 
 Legenda: `[ ]` pendente · `[x]` concluído · 🔴 prioridade alta · 🟠 média · 🟢 baixa
 
@@ -19,23 +19,21 @@ Camadas citadas nos itens: `domain` · `application` · `presentation` · `persi
   (`tipo: resumo`; no merge do PR, `tipo: resumo (#N)`, com o corpo em inglês). Cada commit deve compilar e passar nos
   testes.
 - **Comentários didáticos** nas partes importantes do código e nos testes (o que cada mock faz e por quê).
-- **Perfil:** seguir o curso (perfil `test` com H2 em `application-test.properties`).
-- **Fora do escopo por enquanto:** segurança (autenticação e autorização) e paginação. Entram quando o curso abordar
-  (seção 7).
+- **Perfil:** `test`, com H2 em memória configurado em `application-test.properties`.
+- **Fora do escopo por enquanto:** segurança (autenticação e autorização) e paginação. Ficam para depois (seção 7).
 
 ---
 
 ## 1. Criar o projeto
 
-- [ ] **1.1** 🔴 Gerar o projeto no Spring Initializr (Maven, Java 21) com: Spring Web, Spring Data JPA, H2 Database
+- [x] **1.1** 🔴 Gerar o projeto no Spring Initializr (Maven, Java 21) com: Spring Web, Spring Data JPA, H2 Database
   e Validation. Segurança fica para depois.
-- [ ] **1.2** Criar o repositório no GitHub (vazio, sem README) e conectar com `git remote add origin`.
-- [ ] **1.3** Conferir o `.gitignore` (`target/`, `.idea/` e arquivos de IDE).
-- [ ] **1.4** Configurar `application.properties`: nome da aplicação, `spring.jpa.open-in-view=false` e o perfil do
-  curso fixo (`spring.profiles.active=test`). Em `application-test.properties`: URL do H2, console do H2 e `show-sql`.
-- [ ] **1.5** Adicionar este `architecture.md` em `docs/` e este `TODO.md` na raiz.
-- [ ] **1.6** Primeiro commit na `main` e push:
-  `chore: initial Spring Boot project and architecture docs`.
+- [x] **1.2** Criar o repositório no GitHub (vazio, sem README) e conectar com `git remote add origin`.
+- [x] **1.3** Conferir o `.gitignore` (`target/`, `.idea/` e arquivos de IDE).
+- [x] **1.4** Configurar `application.properties`: nome da aplicação, `spring.jpa.open-in-view=false` e o perfil
+  fixo (`spring.profiles.active=test`). Em `application-test.properties`: URL do H2, console do H2 e `show-sql`.
+- [x] **1.5** Adicionar o `architecture.md` e este `TODO.md` em `docs/`.
+- [x] **1.6** Primeiro commit na `main` e push: `chore: initialize project`.
 
 ---
 
@@ -43,32 +41,29 @@ Camadas citadas nos itens: `domain` · `application` · `presentation` · `persi
 
 Peças que todos os módulos vão usar. Criar antes do primeiro módulo.
 
-- [ ] **2.1** `domain`: `DomainException` (erro de regra de negócio, vira HTTP 422).
-- [ ] **2.2** `application`: `NotFoundException` (base das exceções "não encontrado", vira HTTP 404) e
+- [x] **2.1** `domain`: `DomainException` (erro de regra de negócio, vira HTTP 422).
+- [x] **2.2** `application`: `NotFoundException` (base das exceções "não encontrado", vira HTTP 404) e
   `ConflictException` (base das exceções de conflito, vira HTTP 409).
-- [ ] **2.3** `presentation`: `GlobalExceptionHandler`, que traduz as exceções acima em respostas HTTP
-  padronizadas (`ProblemDetail`) e também trata o erro de validação (400). Se o curso ensinar um formato de erro
-  próprio, adaptar para ele.
-- [ ] **2.4** `domain`: `AggregateRoot`. Classe base opcional dos agregados; pode ficar para quando houver uso real.
-- [ ] **2.5** Teste do `GlobalExceptionHandler`, fixando o contrato de erros (status e corpo de cada caso).
 
 ---
 
 ## 3. Primeiro módulo: `users`
 
-Primeira entidade do curso. Fazer **de dentro para fora**: domínio, persistência, aplicação, web.
+Fazer **de dentro para fora**: domínio, persistência, aplicação, web.
 
-A senha **não entra agora**: ela depende de hash e de segurança, que ficam para quando o curso abordar o assunto
+A senha **não entra agora**: ela depende de hash e de segurança, que ficam para depois
 (itens 7.2 e 7.3). Por enquanto o `User` tem nome, e-mail, telefone e data de nascimento.
 
 ### 3.1 Domínio (`users/domain`)
 - [ ] **3.1.1** `vo/UserId` (record com `Long`, não aceita nulo nem valor menor que 1).
 - [ ] **3.1.2** Value objects `vo/Name`, `vo/Email`, `vo/Phone` e `vo/DateOfBirth`, cada um com sua validação e
   normalização (ex.: `Email` em minúsculas e sem espaços nas pontas). Os erros lançam `DomainException`.
-- [ ] **3.1.3** `User`: o agregado, com `create(...)` (novo, valida tudo) e `restore(...)` (vindo do banco).
+- [ ] **3.1.3** `AggregateRoot` (em `shared/domain`): classe base opcional dos agregados; pode ficar para quando houver
+  uso real.
+- [ ] **3.1.4** `User`: o agregado, com `create(...)` (novo, valida tudo) e `restore(...)` (vindo do banco).
   Métodos de negócio entram aqui (ex.: trocar e-mail e telefone).
-- [ ] **3.1.4** `UserRepository`: interface de escrita (`save`, `findById`, `existsByEmail`).
-- [ ] **3.1.5** Testes de unidade do domínio (JUnit puro, sem Spring): value objects e `User`.
+- [ ] **3.1.5** `UserRepository`: interface de escrita (`save`, `findById`, `existsByEmail`).
+- [ ] **3.1.6** Testes de unidade do domínio (JUnit puro, sem Spring): value objects e `User`.
 
 ### 3.2 Persistência (`users/infrastructure/persistence`)
 - [ ] **3.2.1** `UserEntity`: entidade JPA (`tb_user`), só colunas e anotações. Construtor padrão sem `public`,
@@ -100,15 +95,18 @@ A senha **não entra agora**: ela depende de hash e de segurança, que ficam par
 - [ ] **3.5.1** `dto/CreateUserRequest` e `dto/UserResponse`, com Bean Validation nos campos de entrada
   (`@NotBlank`, `@Email`, `@Size`, `@PastOrPresent`). Os limites de tamanho devem bater com os das colunas.
 - [ ] **3.5.2** `UserWebMapper`: DTO ↔ comando/view.
-- [ ] **3.5.3** `UserController`: `POST /users` (responde 201 com `Location`), `GET /users/{id}` e `GET /users`.
-- [ ] **3.5.4** Testes de API com `MockMvc` (status, headers e JSON de cada endpoint, incluindo os erros: 400 de
+- [ ] **3.5.3** `GlobalExceptionHandler` (em `shared/presentation`): traduz `DomainException` (422),
+  `NotFoundException` (404) e `ConflictException` (409) em respostas HTTP padronizadas (`ProblemDetail`).
+- [ ] **3.5.4** Teste do `GlobalExceptionHandler`, fixando o contrato de erros (status e corpo de cada caso).
+- [ ] **3.5.5** `UserController`: `POST /users` (responde 201 com `Location`), `GET /users/{id}` e `GET /users`.
+- [ ] **3.5.6** Testes de API com `MockMvc` (status, headers e JSON de cada endpoint, incluindo os erros: 400 de
   validação, 404 de usuário inexistente, 409 de e-mail duplicado, 422 de regra de domínio).
 
 ### 3.6 Fechamento
 - [ ] **3.6.1** Rodar `./mvnw clean test` e conferir que tudo passa.
 - [ ] **3.6.2** Abrir o PR do módulo (`feat/users-module`) e fazer o merge com merge commit.
 
-### 3.7 Depois, quando o curso pedir
+### 3.7 Para depois
 - [ ] **3.7.1** Alterar usuário (`PUT /users/{id}`) e remover (`DELETE /users/{id}`).
 
 ---
@@ -167,18 +165,16 @@ Mesmo roteiro da seção 3, com os acréscimos de comunicação entre módulos.
 ## 6. Qualidade e acabamento
 
 - [ ] **6.1** 🟠 `README.md` na raiz: o que é o projeto, como rodar e link para `docs/architecture.md`.
-- [ ] **6.2** 🟠 CI no GitHub Actions: `./mvnw verify` a cada push e PR.
-- [ ] **6.3** 🟢 Documentação da API (springdoc-openapi).
-- [ ] **6.4** 🟢 Migrations (Flyway) no lugar do schema gerado pelo Hibernate + `import.sql`.
-- [ ] **6.5** 🟢 `Clock` injetável nas regras que dependem da data atual, para testes determinísticos.
-- [ ] **6.6** 🟢 Controle otimista (`@Version`) nas entidades alteradas com frequência (pedidos).
-- [ ] **6.7** 🟢 Banco real (PostgreSQL) em um perfil próprio, com Testcontainers nos testes de integração.
+- [ ] **6.2** 🟢 Documentação da API (springdoc-openapi).
+- [ ] **6.3** 🟢 Migrations (Flyway) no lugar do schema gerado pelo Hibernate + `import.sql`.
+- [ ] **6.4** 🟢 Controle otimista (`@Version`) nas entidades alteradas com frequência (pedidos).
+- [ ] **6.5** 🟢 Banco real (PostgreSQL) em um perfil próprio, com Testcontainers nos testes de integração.
 
 ---
 
-## 7. Quando o curso abordar
+## 7. Para depois
 
-Itens adiados de propósito, para acompanhar o conteúdo do curso.
+Itens adiados de propósito, fora do escopo por enquanto.
 
 - [ ] **7.1** Paginação (`Pageable`) nas listagens, com limite de tamanho e ordenação permitida.
 - [ ] **7.2** Autenticação e autorização (OAuth2/JWT). Ao chegar aqui:
@@ -187,13 +183,9 @@ Itens adiados de propósito, para acompanhar o conteúdo do curso.
   - parar de tratar todos os endpoints como públicos e proteger dados pessoais.
 - [ ] **7.3** Senha do usuário: value object `PasswordHash`, port `UserPasswordHasher` no domínio e o adapter com o
   algoritmo de hash na `infrastructure`.
-- [ ] **7.4** Demais entidades e módulos do curso: seguir o roteiro da seção 3, respeitando as regras de referência
+- [ ] **7.4** Demais entidades e módulos: seguir o roteiro da seção 3, respeitando as regras de referência
   entre agregados (id no domínio, associação direta na persistência).
-- [ ] **7.5** 🟢 (opcional, fora do curso) Explorar o Spring Modulith (verificação de módulos, eventos entre módulos,
-  testes por módulo). No modo padrão ele não aceita o `@ManyToOne` para a entidade de outro módulo, então exigiria
-  migrar para a alternativa estrita (`Long clientId`); ver `architecture.md`, seção 9. Conferir a versão compatível
-  com o Spring Boot do projeto.
-- [ ] **7.6** Validações personalizadas e demais tópicos conforme o curso avançar.
+- [ ] **7.5** Validações personalizadas e demais tópicos conforme surgirem.
 
 ---
 
