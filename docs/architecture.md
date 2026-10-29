@@ -129,8 +129,7 @@ Aqui são usadas só as partes que trazem benefício para um projeto deste taman
   reconstrói um que veio do banco, cujos dados já foram validados quando foram salvos.
 
 ### O que fica de fora (por enquanto)
-Eventos de domínio, contextos delimitados (*bounded contexts*) formais e serviços de domínio elaborados. Entram se o
-projeto no curso pedir.
+Eventos de domínio, contextos delimitados (*bounded contexts*) formais e serviços de domínio elaborados.
 
 ---
 
