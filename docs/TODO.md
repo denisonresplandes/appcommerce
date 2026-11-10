@@ -3,24 +3,9 @@
 Lista de trabalho do projeto. Os itens estão na ordem em que devem ser feitos, e o arquivo vai sendo atualizado
 conforme o projeto avança (itens novos entram, os concluídos são marcados).
 
-A arquitetura e o porquê das regras estão em [`architecture.md`](architecture.md).
+A arquitetura, o porquê das regras e as convenções de Git estão em [`architecture.md`](architecture.md).
 
 Legenda: `[ ]` pendente · `[x]` concluído · 🔴 prioridade alta · 🟠 média · 🟢 baixa
-
-Camadas citadas nos itens: `domain` · `application` · `presentation` · `persistence` (que fica em
-`infrastructure/persistence`) · `acl` (que fica em `infrastructure/acl`).
-
----
-
-## Convenções do projeto
-
-- **Git:** uma branch curta por assunto (`feat/...`, `fix/...`, `refactor/...`, `docs/...`), sempre criada a partir da
-  `main` atualizada. Pull Request com merge commit, nunca squash. Mensagens em inglês, no padrão Conventional Commits
-  (`tipo: resumo`; no merge do PR, `tipo: resumo (#N)`, com o corpo em inglês). Cada commit deve compilar e passar nos
-  testes.
-- **Comentários didáticos** nas partes importantes do código e nos testes (o que cada mock faz e por quê).
-- **Perfil:** `test`, com H2 em memória configurado em `application-test.properties`.
-- **Fora do escopo por enquanto:** segurança (autenticação e autorização) e paginação. Ficam para depois (seção 7).
 
 ---
 
@@ -47,7 +32,7 @@ Peças que todos os módulos vão usar. Criar antes do primeiro módulo.
 
 ---
 
-## 3. Primeiro módulo: `users`
+## 3. Módulo: `users`
 
 Fazer **de dentro para fora**: domínio, persistência, aplicação, web.
 
@@ -55,15 +40,15 @@ A senha **não entra agora**: ela depende de hash e de segurança, que ficam par
 (itens 7.2 e 7.3). Por enquanto o `User` tem nome, e-mail, telefone e data de nascimento.
 
 ### 3.1 Domínio (`users/domain`)
-- [ ] **3.1.1** `vo/UserId` (record com `Long`, não aceita nulo nem valor menor que 1).
-- [ ] **3.1.2** Value objects `vo/Name`, `vo/Email`, `vo/Phone` e `vo/DateOfBirth`, cada um com sua validação e
+- [x] **3.1.1** `vo/UserId` (record com `Long`, não aceita nulo nem valor menor que 1).
+- [x] **3.1.2** Value objects `vo/Name`, `vo/Email`, `vo/Phone` e `vo/DateOfBirth`, cada um com sua validação e
   normalização (ex.: `Email` em minúsculas e sem espaços nas pontas). Os erros lançam `DomainException`.
-- [ ] **3.1.3** `AggregateRoot` (em `shared/domain`): classe base opcional dos agregados; pode ficar para quando houver
+- [x] **3.1.3** `AggregateRoot` (em `shared/domain`): classe base opcional dos agregados; pode ficar para quando houver
   uso real.
-- [ ] **3.1.4** `User`: o agregado, com `create(...)` (novo, valida tudo) e `restore(...)` (vindo do banco).
+- [x] **3.1.4** `User`: o agregado, com `create(...)` (novo, valida tudo) e `restore(...)` (vindo do banco).
   Métodos de negócio entram aqui (ex.: trocar e-mail e telefone).
-- [ ] **3.1.5** `UserRepository`: interface de escrita (`save`, `findById`, `existsByEmail`).
-- [ ] **3.1.6** Testes de unidade do domínio (JUnit puro, sem Spring): value objects e `User`.
+- [x] **3.1.5** `UserRepository`: interface de escrita (`save`, `findById`, `existsByEmail`).
+- [x] **3.1.6** Testes de unidade do domínio (JUnit puro, sem Spring): value objects e `User`.
 
 ### 3.2 Persistência (`users/infrastructure/persistence`)
 - [ ] **3.2.1** `UserEntity`: entidade JPA (`tb_user`), só colunas e anotações. Construtor padrão sem `public`,
@@ -107,7 +92,8 @@ A senha **não entra agora**: ela depende de hash e de segurança, que ficam par
 - [ ] **3.6.2** Abrir o PR do módulo (`feat/users-module`) e fazer o merge com merge commit.
 
 ### 3.7 Para depois
-- [ ] **3.7.1** Alterar usuário (`PUT /users/{id}`) e remover (`DELETE /users/{id}`).
+- [ ] **3.7.1** Alterar usuário (`PUT /users/{id}`) e remover (`DELETE /users/{id}`, com `deleteById` no
+  `UserRepository`).
 
 ---
 
@@ -186,19 +172,3 @@ Itens adiados de propósito, fora do escopo por enquanto.
 - [ ] **7.4** Demais entidades e módulos: seguir o roteiro da seção 3, respeitando as regras de referência
   entre agregados (id no domínio, associação direta na persistência).
 - [ ] **7.5** Validações personalizadas e demais tópicos conforme surgirem.
-
----
-
-## Decisões já tomadas
-
-- **Estilo:** camadas por módulo (monolito modular), com a dependência invertida: o domínio fica no centro e a
-  infraestrutura depende dele, no espírito de Clean/Hexagonal.
-- **Dois modelos por agregado:** domínio e persistência separados, ligados por mapper.
-- **Referência entre agregados:** no domínio, só por id; na persistência, pode ser direta (`@ManyToOne` LAZY).
-  O acoplamento com a entidade do outro módulo fica restrito a `infrastructure.persistence`. A alternativa
-  (`Long clientId` na persistência) foi avaliada e deixada de lado; o trade-off está em `architecture.md`, seção 9.
-- **Dentro do mesmo agregado**, objetos se referenciam diretamente nos dois modelos. Ao carregar o agregado, as
-  partes vêm junto (`join fetch`/`@EntityGraph`).
-- **CQRS leve:** escrita via agregado e `*CommandService`; leitura via `*View` e `*QueryService`, no mesmo banco.
-- **Frameworks por camada:** o `domain` não usa nenhum (Java puro); a `application` pode usar `@Service` e
-  `@Transactional`, mas não JPA nem web.
