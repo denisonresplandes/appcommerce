@@ -1,7 +1,7 @@
 # Arquitetura
 
 O projeto é um **monolito em camadas**, com **DDD leve** e **CQRS leve**. Este documento explica o que isso significa
-na prática, como as pastas estão organizadas e quais regras valem para o código.
+na prática, como as pastas estão organizadas, quais regras valem para o código e quais convenções de Git são seguidas.
 
 ---
 
@@ -321,7 +321,19 @@ persistência dos dois módulos, e só ela, porque o ArchUnit não deixa o resto
 
 ---
 
-## 11. Glossário rápido
+## 11. Convenções do projeto
+
+### Git
+- Uma branch curta por assunto (`feat/...`, `fix/...`, `refactor/...`, `docs/...`), sempre criada a partir da `main`
+  atualizada.
+- Pull Request com merge commit, nunca squash.
+- Mensagens em inglês, no padrão Conventional Commits (`tipo: resumo`). No merge do PR, o título é
+  `tipo: resumo (#N)`, com o corpo em inglês.
+- Cada commit deve compilar e passar nos testes.
+
+---
+
+## 12. Glossário rápido
 
 - **Entidade de domínio**: a classe com as regras (`User`, `Order`). Não tem anotações de banco.
 - **Entidade JPA**: a classe espelho da tabela (`UserEntity`). Não tem regras.

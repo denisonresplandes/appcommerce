@@ -44,9 +44,6 @@ public class DomainException extends RuntimeException {
     /**
      * Garante que o número não é nulo e é maior que zero. Usado nos ids, que no banco começam em 1.
      *
-     * <p>O parâmetro é {@code Long} (e não {@code long}) justamente para poder receber {@code null} e rejeitá-lo com
-     * a mesma mensagem, em vez de estourar um {@code NullPointerException}.</p>
-     *
      * @throws DomainException com {@code message} se {@code value} for nulo, zero ou negativo
      */
     public static void requirePositive(Long value, String message) {
