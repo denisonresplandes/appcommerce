@@ -327,8 +327,9 @@ persistência dos dois módulos, e só ela, porque o ArchUnit não deixa o resto
 - Uma branch curta por assunto (`feat/...`, `fix/...`, `refactor/...`, `docs/...`), sempre criada a partir da `main`
   atualizada.
 - Pull Request com merge commit, nunca squash.
-- Mensagens em inglês, no padrão Conventional Commits (`tipo: resumo`). No merge do PR, o título é
+- Mensagens de commit em inglês, no padrão Conventional Commits (`tipo: resumo`). No merge do PR, o título é
   `tipo: resumo (#N)`, com o corpo em inglês.
+- A descrição do PR é escrita em português (pt-BR).
 - Cada commit deve compilar e passar nos testes.
 
 ---
