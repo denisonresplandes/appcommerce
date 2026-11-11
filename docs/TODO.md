@@ -51,14 +51,14 @@ A senha **não entra agora**: ela depende de hash e de segurança, que ficam par
 - [x] **3.1.6** Testes de unidade do domínio (JUnit puro, sem Spring): value objects e `User`.
 
 ### 3.2 Persistência (`users/infrastructure/persistence`)
-- [ ] **3.2.1** `UserEntity`: entidade JPA (`tb_user`), só colunas e anotações. Construtor padrão sem `public`,
-  `equals`/`hashCode` pelo id. Restrição `UNIQUE` em `email`, com nome (`uk_user_email`). A classe é `public`, porque
+- [x] **3.2.1** `UserEntity`: entidade JPA (`tb_user`), só colunas e anotações. Construtor padrão sem `public`,
+  `equals`/`hashCode` pelo id. Restrição `UNIQUE` em `email`. A classe é `public`, porque
   o `orders` vai apontar para ela (`architecture.md`, seção 9).
-- [ ] **3.2.2** `UserMapper`: `toEntity(User)` e `toDomain(UserEntity)`.
-- [ ] **3.2.3** `SpringDataUserRepository` (`JpaRepository`, sem `public`), com `existsByEmail`.
-- [ ] **3.2.4** `JpaUserRepositoryAdapter`: implementa `UserRepository` usando o mapper.
-- [ ] **3.2.5** `import.sql` com alguns usuários de exemplo.
-- [ ] **3.2.6** Teste de que o banco recusa e-mail duplicado (a última linha de defesa, mesmo que a checagem do service
+- [x] **3.2.2** `UserMapper`: `toEntity(User)` e `toDomain(UserEntity)`.
+- [x] **3.2.3** `SpringDataUserRepository` (`JpaRepository`, sem `public`), com `existsByEmail`.
+- [x] **3.2.4** `JpaUserRepositoryAdapter`: implementa `UserRepository` usando o mapper.
+- [x] **3.2.5** `import.sql` com alguns usuários de exemplo.
+- [x] **3.2.6** Teste de que o banco recusa e-mail duplicado (a última linha de defesa, mesmo que a checagem do service
   falhe numa corrida entre duas requisições).
 
 ### 3.3 Aplicação (`users/application`)
