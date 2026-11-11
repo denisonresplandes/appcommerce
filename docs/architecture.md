@@ -123,7 +123,7 @@ Aqui são usadas só as partes que trazem benefício para um projeto deste taman
   um `Email` na mão, ele é válido, e não precisa ser conferido de novo. São `record`s imutáveis.
 - **Aggregate Root.** É a "porta de entrada" de um grupo de dados. `Order` é a raiz do pedido: para mexer em qualquer
   parte dele, passa-se sempre por `Order`.
-- **Repositório como interface do domínio.** O domínio define `UserRepository` (`save`, `findById`), e a
+- **Repositório como interface do domínio.** O domínio define `UserRepository` (`save`, `findById`, `existsByEmail`), e a
   infraestrutura implementa com Spring Data. O domínio pensa em "coleção de usuários", sem saber de JPA.
 - **Fábricas com nome.** `User.create(...)` cria um usuário novo, validando tudo. `User.restore(...)`
   reconstrói um que veio do banco, cujos dados já foram validados quando foram salvos.
