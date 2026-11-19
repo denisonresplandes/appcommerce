@@ -52,7 +52,8 @@ A senha **não entra agora**: ela depende de hash e de segurança, que ficam par
 
 ### 3.2 Persistência (`users/infrastructure/persistence`)
 - [x] **3.2.1** `UserEntity`: entidade JPA (`tb_user`), só colunas e anotações. Construtor padrão sem `public`,
-  `equals`/`hashCode` pelo id. Restrição `UNIQUE` em `email`. A classe é `public`, porque
+  `equals` pelo id (sem id, só igual a si mesma) e `hashCode` constante, porque o id é gerado no `persist` e um hash
+  baseado nele faria a entidade se perder dentro de um `Set` (`UserEntityTest`). Restrição `UNIQUE` em `email`. A classe é `public`, porque
   o `orders` vai apontar para ela (`architecture.md`, seção 9).
 - [x] **3.2.2** `UserMapper`: `toEntity(User)` e `toDomain(UserEntity)`.
 - [x] **3.2.3** `SpringDataUserRepository` (`JpaRepository`, sem `public`), com `existsByEmail`.
@@ -62,34 +63,53 @@ A senha **não entra agora**: ela depende de hash e de segurança, que ficam par
   falhe numa corrida entre duas requisições).
 
 ### 3.3 Aplicação (`users/application`)
-- [ ] **3.3.1** `view/UserView`: record de leitura.
-- [ ] **3.3.2** `command/CreateUserCommand`.
-- [ ] **3.3.3** `exception/UserNotFoundException` (herda `NotFoundException`) e `EmailAlreadyInUseException`
-  (herda `ConflictException`).
-- [ ] **3.3.4** `port/UserQueryRepository`: interface de leitura (devolve `UserView`).
-- [ ] **3.3.5** `UserCommandService` (`@Transactional`): criar usuário, conferindo `existsByEmail` antes de salvar.
-- [ ] **3.3.6** `UserQueryService` (`@Transactional(readOnly = true)`): buscar por id e listar.
-- [ ] **3.3.7** Testes de unidade dos services com Mockito, comentando o que cada mock faz.
+- [x] **3.3.1** `view/UserView`: record de saída, usado pela leitura e pelo `create`.
+- [x] **3.3.2** `command/CreateUserCommand`.
+- [x] **3.3.3** `exception/UserNotFoundException` (herda `NotFoundException`) e `EmailAlreadyInUseException`
+  (herda `ConflictException`). A mensagem é montada dentro da exceção: `UserNotFoundException(Long id)` e
+  `UserNotFoundException(String email)`, e `EmailAlreadyInUseException(String email)`.
+- [x] **3.3.4** `port/UserQueryRepository`: interface de leitura (devolve `UserView`).
+- [x] **3.3.5** `UserCommandService` (`@Transactional`): criar usuário, conferindo `existsByEmail` antes de salvar.
+- [x] **3.3.6** `UserQueryService` (`@Transactional(readOnly = true)`): buscar por id, buscar por e-mail e listar.
+- [x] **3.3.7** Testes de unidade dos services com Mockito, comentando o que cada mock faz.
 
 ### 3.4 Leitura na persistência
-- [ ] **3.4.1** `SpringDataUserQueryRepository`: estende `Repository<>` (não `JpaRepository`) e projeta direto em
+- [x] **3.4.1** `SpringDataUserQueryRepository`: estende `Repository<>` (não `JpaRepository`) e projeta direto em
   `UserView` com `select new`.
-- [ ] **3.4.2** `JpaUserQueryRepositoryAdapter`: implementa `UserQueryRepository`.
+- [x] **3.4.2** `JpaUserQueryRepositoryAdapter`: implementa `UserQueryRepository`.
 
 ### 3.5 Web (`users/presentation`)
-- [ ] **3.5.1** `dto/CreateUserRequest` e `dto/UserResponse`, com Bean Validation nos campos de entrada
-  (`@NotBlank`, `@Email`, `@Size`, `@PastOrPresent`). Os limites de tamanho devem bater com os das colunas.
-- [ ] **3.5.2** `UserWebMapper`: DTO ↔ comando/view.
-- [ ] **3.5.3** `GlobalExceptionHandler` (em `shared/presentation`): traduz `DomainException` (422),
+- [x] **3.5.1** `dto/CreateUserRequest` e `dto/UserResponse`, com Bean Validation nos campos de entrada
+  (`@NotBlank`, `@Email`, `@Size`, `@Pattern`, `@PastOrPresent`). Os limites de tamanho devem bater com os das
+  colunas. O telefone leva `@Pattern(regexp = "\\d*")`, além do `@Size`: o `Phone` do domínio descarta o que não é
+  dígito, e sem o `@Pattern` um texto como `1191234567a` seria gravado como `1191234567` sem aviso.
+  As mensagens ficam em `src/main/resources/messages.properties` e as anotações usam `message = "{chave}"`.
+- [x] **3.5.2** `UserWebMapper`: DTO ↔ comando/view (`toCommand(CreateUserRequest)` e `toResponse(UserView)`).
+  O JSON usa o formato canônico, na entrada e na saída: telefone só com dígitos e data ISO (`yyyy-MM-dd`). A máscara
+  fica por conta de quem exibe o dado.
+- [x] **3.5.3** `GlobalExceptionHandler` (em `shared/presentation`): traduz `DomainException` (422),
   `NotFoundException` (404) e `ConflictException` (409) em respostas HTTP padronizadas (`ProblemDetail`).
-- [ ] **3.5.4** Teste do `GlobalExceptionHandler`, fixando o contrato de erros (status e corpo de cada caso).
-- [ ] **3.5.5** `UserController`: `POST /users` (responde 201 com `Location`), `GET /users/{id}` e `GET /users`.
-- [ ] **3.5.6** Testes de API com `MockMvc` (status, headers e JSON de cada endpoint, incluindo os erros: 400 de
+  Estende `ResponseEntityExceptionHandler`, então os erros do próprio Spring MVC (JSON ilegível, id não numérico,
+  rota inexistente, 405, 415) também saem como `ProblemDetail`. O 400 de validação (`@Valid` no corpo ou
+  `@Positive` em parâmetro do caminho) traz a lista `errors`, com `field` e `message`, ordenada por campo e depois
+  por mensagem.
+- [x] **3.5.4** Teste do `GlobalExceptionHandler`, fixando o contrato de erros (status e corpo de cada caso, incluindo
+  o 400 de validação com `errors` e um erro do Spring MVC, como o JSON ilegível).
+- [x] **3.5.5** `UserController`: `POST /users` (responde 201 com `Location`), `GET /users/{id}`, `GET /users` e
+  `GET /users?email=` (devolve um único usuário, ou 404; o `params = "email"` evita o conflito com a listagem, que
+  tem o mesmo caminho). O parâmetro `email` é validado como o campo do `POST` (`@NotBlank`, `@Email` e
+  `@Size(max = 100)`): em branco, com formato inválido ou com mais de 100 caracteres dá 400, como o id não positivo.
+  O que passa no `@Email` mas o domínio recusa (como `ana@mail`) dá 422, igual ao `POST /users`. A mensagem do 404
+  usa o e-mail normalizado, como a do 409.
+- [x] **3.5.6** Testes de API com `MockMvc` (status, headers e JSON de cada endpoint, incluindo os erros: 400 de
   validação, 404 de usuário inexistente, 409 de e-mail duplicado, 422 de regra de domínio).
+- [x] **3.5.7** `UserValidationConsistencyTest`: confere que o DTO, o controller, os value objects e as colunas dizem a
+  mesma coisa (limites de tamanho iguais; toda anotação de validação usa uma chave existente do `messages.properties`,
+  com os `{min}` e `{max}` que a anotação tem) e que o domínio nunca recusa nem altera um telefone que o DTO aceita.
 
 ### 3.6 Fechamento
-- [ ] **3.6.1** Rodar `./mvnw clean test` e conferir que tudo passa.
-- [ ] **3.6.2** Abrir o PR do módulo (`feat/users-module`) e fazer o merge com merge commit.
+- [x] **3.6.1** Rodar `./mvnw clean test` e conferir que tudo passa (189 testes).
+- [ ] **3.6.2** Abrir o PR (3.3 a 3.5: `application`, leitura na persistência e web) e fazer o merge com merge commit.
 
 ### 3.7 Para depois
 - [ ] **3.7.1** Alterar usuário (`PUT /users/{id}`) e remover (`DELETE /users/{id}`, com `deleteById` no
