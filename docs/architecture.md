@@ -31,6 +31,9 @@ O controller chama o service, o service usa o domínio, e a infraestrutura **imp
 O domínio não conhece ninguém: não importa Spring, JPA nem nada de web. Por isso as regras de negócio podem ser
 testadas com um teste simples de JUnit, sem subir o contexto do Spring.
 
+Uma nuance do diagrama: na **leitura**, a infraestrutura também depende da `application`, mas só do port
+`UserQueryRepository` e do `UserView` que ele devolve (veja "Camadas e Clean Architecture", logo abaixo).
+
 Regras de cada camada:
 
 - **`domain`**: Java puro. Sem anotações de Spring, JPA ou JSON.
@@ -46,13 +49,20 @@ Mescla as duas coisas. A estrutura é de **camadas em pacotes, dentro de módulo
 modular), mas a **direção das dependências** segue a ideia da Clean Architecture e da arquitetura hexagonal:
 
 - Numa arquitetura em camadas tradicional, o negócio chama a camada de dados e **depende** dela.
-- Aqui é invertido: o domínio define a interface (`UserRepository`) e a infraestrutura **depende do domínio** para
-  implementá-la. O domínio fica no centro e não conhece o banco.
+- Aqui é invertido: quem precisa do dado define a interface (o *port*) e a infraestrutura **depende dela** para
+  implementá-la. O domínio fica no centro e não conhece o banco. Isso vale nos dois lados:
+  - **escrita:** `UserRepository` fica em `domain`, e o `JpaUserRepositoryAdapter` o implementa;
+  - **leitura:** `UserQueryRepository` fica em `application`, junto com o `UserView` que ele devolve, e o
+    `JpaUserQueryRepositoryAdapter` o implementa. É por isso que a infraestrutura depende da `application`, só desses
+    dois tipos. O port de leitura não pode ficar no `domain`, porque o domínio não pode depender de um tipo da
+    `application` (o `UserView`).
 
 Diferenças em relação à Clean Architecture "de livro": não há um círculo para cada coisa nem uma classe por caso de
 uso (os casos de uso ficam agrupados em services), e a `application` aceita `@Service` e `@Transactional` por
-pragmatismo. O DDD é um assunto à parte e combina com as duas: é ele que define como o modelo de domínio é escrito
-(agregados, value objects, regras dentro das classes).
+pragmatismo. Também não há interfaces de entrada (*input ports*): o controller chama direto a classe do service, o
+que já respeita a direção das dependências (de fora para dentro) e evita uma interface por service sem ganho agora.
+O DDD é um assunto à parte e combina com as duas: é ele que define como o modelo de domínio é escrito (agregados,
+value objects, regras dentro das classes).
 
 ---
 
@@ -81,7 +91,7 @@ src/main/java/dev/denison/appcommerce/
 │   │   ├── UserCommandService       #     escrita (cria, altera, remove)
 │   │   ├── UserQueryService         #     leitura
 │   │   ├── command/                 #     CreateUserCommand
-│   │   ├── view/                    #     UserView (objeto de leitura)
+│   │   ├── view/                    #     UserView (objeto de saída, sem regras)
 │   │   ├── port/                    #     UserQueryRepository (interface de leitura)
 │   │   └── exception/               #     UserNotFoundException, EmailAlreadyInUseException
 │   │
@@ -196,8 +206,14 @@ não consulta nada.
 - **Partes do mesmo agregado** (`@OneToMany`) são carregadas junto com a raiz, com `join fetch` ou `@EntityGraph`, na
   consulta que o adapter usa. O mapper converte para o domínio depois que a sessão do JPA fechou, e uma coleção
   `LAZY` ainda não carregada lançaria `LazyInitializationException` nesse momento.
+- **`equals` pelo id e `hashCode` constante** nas entidades JPA com id gerado pelo banco. O id só existe depois do
+  `persist`, e um hash calculado a partir dele mudaria com a entidade já dentro de um `Set`, que então não a
+  encontraria mais. O custo é que todas as entidades do tipo caem no mesmo balde, o que só pesa em coleções com
+  milhares de elementos; para essas, guarde os **ids** (`Set<Long>`), que têm hash por valor. O `equals` compara com
+  `getId()` (não com o campo), porque o outro objeto pode ser um proxy do Hibernate. No domínio (`User`) é diferente:
+  o id é `final`, então o hash pode sair dele.
 - Usar a entidade de outro módulo é um acoplamento aceito, mas fica **restrito ao pacote
-  `infrastructure.persistence`** (o teste de arquitetura garante isso). Domínio, aplicação e web enxergam apenas ids.
+  `infrastructure.persistence`** (o teste de arquitetura, planejado no `TODO.md` §4, vai garantir isso). Domínio, aplicação e web enxergam apenas ids.
 
 ---
 
@@ -232,14 +248,21 @@ CQRS é separar **comandos** (quem altera dados) de **consultas** (quem só lê)
 separados, filas e eventos. Aqui a versão é bem mais simples, só uma separação de código.
 
 - **Escrita:** `UserCommandService` cria ou carrega o **agregado**, aplica as regras do domínio e salva pelo
-  `UserRepository`.
-- **Leitura:** `UserQueryService` busca no banco já montando um objeto de leitura (`UserView`) com
+  `UserRepository`. O `create` devolve o `UserView` do usuário salvo (montado a partir do agregado, dentro da
+  `application`), para o `POST` responder com o recurso criado sem uma consulta a mais. É um desvio assumido do CQRS
+  puro, em que o comando devolveria só o id e o controller faria a consulta.
+- **Leitura:** `UserQueryService` busca no banco já montando o `UserView` direto da consulta, com
   `select new ...`. Não monta o agregado nem revalida nada, porque ler não altera nada.
 
 ```
-POST /users       -> Controller -> UserCommandService -> User (domínio) -> UserRepository -> banco
-GET  /users/{id}  -> Controller -> UserQueryService   -> UserQueryRepository -> UserView
+POST /users              -> Controller -> UserCommandService -> User (domínio) -> UserRepository -> banco
+GET  /users/{id}         -> Controller -> UserQueryService   -> UserQueryRepository -> UserView
+GET  /users?email=...    -> Controller -> UserQueryService   -> UserQueryRepository -> UserView
+GET  /users              -> Controller -> UserQueryService   -> UserQueryRepository -> lista de UserView
 ```
+
+Nas consultas, o controller passa tipos simples (`Long`, `String`) ao service. É o service que cria os value objects
+(`UserId`, `Email`) e os entrega ao port de leitura.
 
 Por que separar:
 - a leitura fica mais rápida e simples (sem agregado, sem validar cada linha lida);
@@ -255,7 +278,7 @@ O banco é o **mesmo** nos dois lados, sem filas, sincronização ou eventos.
 `POST /users`:
 
 1. O **controller** recebe o JSON, faz a validação básica (campo vazio, tamanho) e converte o DTO em um comando.
-2. O **service** (`application`) cria os value objects (`Name`, `Email`, `Phone`), confere se o e-mail já está em uso e
+2. O **service** (`application`) cria os value objects (`Name`, `Email`, `Phone`, `DateOfBirth`), confere se o e-mail já está em uso e
    chama `User.create`.
 3. O **domínio** garante que o usuário nasce válido.
 4. O **adapter** (`infrastructure`) converte `User` em `UserEntity` com o mapper e salva com Spring Data.
@@ -279,6 +302,9 @@ Cada passo está em uma camada. Se o banco mudar, só o passo 4 muda.
 | Value Object | `Email`, `Phone`... | Validação e normalização dentro do tipo |
 | Strategy (via enum) | `OrderStatus.canTransitionTo` | Máquina de estados sem `if/else` espalhado |
 
+Hoje o código tem Repository, Adapter, Mapper, Service Layer, Factory Method e Value Object. Facade, Anti-Corruption
+Layer e Strategy descrevem o alvo: entram junto com a primeira `api` e com o módulo `orders`.
+
 ---
 
 ## 9. Custos desta escolha
@@ -300,10 +326,10 @@ No domínio, `Order` guarda só um `ClientId`. Na persistência, `OrderEntity` a
 | Mapper | Precisa do `getReference` | Só copia o `Long` |
 | Independência do módulo | `orders` depende da `UserEntity`, que precisa ser `public` | A `UserEntity` pode ser `package-private`, e o `users` muda o schema à vontade |
 | Extrair o módulo para outro serviço | Reescreve entidade, mapper, adapter e consultas | Quase nada muda |
-| Proteção | Exige a regra do ArchUnit | A própria estrutura impede |
+| Proteção | Exige a regra do ArchUnit (planejada, `TODO.md` §4.4) | A própria estrutura impede |
 
 O acoplamento é de **schema**, não de domínio: o domínio de `orders` só conhece o `ClientId`. O que fica acoplado é a
-persistência dos dois módulos, e só ela, porque o ArchUnit não deixa o resto do `orders` enxergar a `UserEntity`.
+persistência dos dois módulos, e só ela, porque a regra do ArchUnit (planejada, `TODO.md` §4.4) não deixará o resto do `orders` enxergar a `UserEntity`.
 
 
 ---
@@ -319,6 +345,9 @@ persistência dos dois módulos, e só ela, porque o ArchUnit não deixa o resto
 - cada tipo de classe está no pacote certo (controllers em `presentation`, entidades JPA em
   `infrastructure.persistence`...).
 
+Hoje essas regras são conferidas por revisão (e por varredura de imports). O `ArchitectureTest` do `TODO.md` §4 vai
+automatizá-las, fazendo o `mvn test` falhar quando uma for quebrada.
+
 ---
 
 ## 11. Convenções do projeto
@@ -332,6 +361,72 @@ persistência dos dois módulos, e só ela, porque o ArchUnit não deixa o resto
 - A descrição do PR é escrita em português (pt-BR).
 - Cada commit deve compilar e passar nos testes.
 
+### API: formato dos dados e dos erros
+
+**Dados.** O JSON usa sempre o formato canônico, na entrada e na saída: telefone só com dígitos (10 ou 11, com DDD) e
+datas em ISO (`yyyy-MM-dd`). A máscara (`(11) 91234-5678`, `25/07/2001`) é problema de quem exibe o dado. Assim o que a
+API devolve num `GET` pode voltar como entrada num `POST`, e nenhum cliente depende do formato de outro país ou idioma.
+O domínio normaliza o que recebe (e-mail em minúsculas e sem espaços nas pontas, espaços repetidos do nome juntados),
+e a resposta já traz o valor normalizado. Fora essa normalização, o domínio **não pode alterar em silêncio o que o DTO
+aceitou**: o `Phone` descarta tudo o que não é dígito, então o DTO do telefone tem `@Pattern` de só dígitos, para um
+`1191234567a` ser recusado (`400`) em vez de gravado como `1191234567`.
+
+**Respostas de sucesso.** `POST /users` responde `201` com o usuário no corpo e o cabeçalho `Location` (URL absoluta do
+recurso novo). As consultas respondem `200`.
+
+**Erros.** Todo erro sai no formato `ProblemDetail` (RFC 9457), com `Content-Type: application/problem+json` e os
+campos `status`, `title` (o texto padrão do status), `detail` e `instance` (o caminho da requisição):
+
+```json
+{"status":422,"title":"Unprocessable Content","detail":"user name is too short","instance":"/users"}
+```
+
+| Situação | Status | Quem produz | `detail` |
+|---|---|---|---|
+| Entrada malformada ou fora do formato: campo vazio, tamanho, formato, JSON ilegível, id não numérico ou não positivo | `400` | Bean Validation no controller e nos DTOs, ou o próprio Spring MVC | no corpo: `Invalid request content.`; em parâmetro: `Validation failure`; nos demais, o texto do Spring |
+| Pedido bem formado que viola uma regra de negócio | `422` | `DomainException` | a mensagem da exceção |
+| Recurso que não existe | `404` | `NotFoundException` (e suas subclasses) | a mensagem da exceção |
+| Dado válido que colide com o que já existe (e-mail em uso) | `409` | `ConflictException` (e suas subclasses) | a mensagem da exceção |
+| Rota inexistente, método ou tipo de conteúdo não aceitos | `404`, `405`, `415` | Spring MVC | o texto do Spring |
+
+O `400` e o `422` se complementam. A validação do DTO barra cedo o que é óbvio (um e-mail sem `@`), e o domínio continua
+sendo a autoridade: `ana@mail` passa no `@Email` do DTO, mas o `Email` do domínio exige uma extensão, e o resultado é
+`422`. Por isso as mesmas regras podem aparecer nos dois lugares, e o domínio nunca depende do DTO. O mesmo vale para
+os parâmetros de consulta: `GET /users?email=` valida o e-mail como o campo do `POST` (obrigatório, formato e no
+máximo 100 caracteres), então a mesma entrada dá o mesmo status nos dois endpoints.
+
+Os erros de validação (`400` de `@Valid` no corpo e de parâmetros do caminho ou da consulta, como `@Positive`,
+`@NotBlank` e `@Email`) trazem também a lista `errors`, com o campo (ou o nome do parâmetro) e a mensagem, ordenada por campo e
+depois por mensagem:
+
+```json
+{"status":400,"title":"Bad Request","detail":"Invalid request content.","instance":"/users",
+ "errors":[{"field":"email","message":"user email address is invalid"},
+           {"field":"name","message":"user name is required"}]}
+```
+
+**Mensagens.** O texto de cada erro é fixo e em inglês, e não depende do idioma do cliente nem da máquina:
+- as mensagens do Bean Validation ficam em `src/main/resources/messages.properties` (chaves como `user.name.required`,
+  com `{min}` e `{max}` tirados da própria anotação). Toda anotação de validação deve usar `message = "{chave}"`:
+  sem isso o texto padrão sai no idioma da requisição (`não deve estar em branco` com `Accept-Language: pt-BR`);
+- as exceções do domínio e da aplicação montam a própria mensagem (`user not found with id 9`,
+  `user email address ana@mail.com is already in use`).
+
+**Onde fica.** O `GlobalExceptionHandler` está em `shared/presentation` e estende `ResponseEntityExceptionHandler`, por
+isso os erros do Spring MVC saem no mesmo formato. Os handlers valem para as subclasses: cada módulo cria a sua
+exceção (`UserNotFoundException extends NotFoundException`) sem mexer no handler. O `GlobalExceptionHandlerTest` fixa
+o contrato (status, tipo e corpo de cada caso), e o `UserApiTest` o confere de ponta a ponta.
+
+**Consistência entre as camadas.** Os mesmos limites aparecem no DTO, no value object e na coluna, porque o
+`presentation` não pode importar o domínio. O `UserValidationConsistencyTest` evita que um lado mude sem o outro:
+confere que os limites de tamanho são iguais nas três camadas, que toda anotação de validação usa uma chave que existe
+no `messages.properties` (com os `{min}` e `{max}` que a anotação realmente tem) e que o domínio nunca recusa nem
+altera um telefone que o DTO aceita. Ao criar um campo ou uma regra nova, o teste deve ser estendido.
+
+**Ainda sem tratamento próprio.** Uma exceção inesperada responde `500` com o formato padrão do Spring Boot, e a corrida
+de dois `POST` simultâneos com o mesmo e-mail (o banco recusa pela restrição de unicidade) também vira `500`. O caso
+natural para essa corrida é um `409`, tratando a `DataIntegrityViolationException` no handler.
+
 ---
 
 ## 12. Glossário rápido
@@ -342,6 +437,8 @@ persistência dos dois módulos, e só ela, porque o ArchUnit não deixa o resto
 - **Aggregate Root**: a classe principal de um grupo; é por ela que se altera o grupo.
 - **Port**: interface que o domínio ou a aplicação define para dizer "eu preciso disso".
 - **Adapter**: classe da infraestrutura que implementa o port.
-- **View**: objeto só de leitura, montado direto da consulta.
+- **View**: objeto de saída da `application`, sem regras. Na leitura é montado direto da consulta (`select new`); na
+  escrita, a partir do agregado recém-salvo, para o `POST` poder devolver o recurso criado.
 - **Mapper**: classe que converte um modelo em outro.
+- **ProblemDetail**: formato padrão (RFC 9457) das respostas de erro da API (`status`, `title`, `detail`, `instance`).
 - **ACL (Anti-Corruption Layer)**: classe que traduz o vocabulário de um módulo para o de outro.

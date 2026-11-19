@@ -3,12 +3,24 @@ package dev.denison.appcommerce.users.infrastructure.persistence;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
-import java.util.Objects;
 
 /**
  * Entidade JPA do usuário: o espelho da tabela {@code tb_user}, só com colunas e anotações,
  * sem regra de negócio. As regras ficam no {@code User} (domínio), e o {@link UserMapper}
  * converte um modelo no outro.
+ *
+ * <p><b>Igualdade ({@code equals} e {@code hashCode}).</b> O {@code equals} compara só o id: dois objetos são o mesmo
+ * usuário se têm o mesmo id, e uma entidade nova (sem id) só é igual a si mesma. A comparação usa {@code getId()}, e
+ * não o campo, porque o objeto recebido pode ser um proxy do Hibernate, que tem os campos vazios.</p>
+ *
+ * <p>O {@code hashCode} é <b>constante</b> de propósito: {@code getClass().hashCode()}, o mesmo valor para todos os
+ * usuários. O id é gerado no {@code persist}, então um hash calculado a partir dele mudaria com a entidade já dentro de
+ * um {@code Set} ou {@code HashMap}, e ela se perderia ali. Com o proxy do Hibernate também funciona: o proxy repassa
+ * o {@code hashCode()} ao objeto real, e os dois dão o mesmo valor.</p>
+ *
+ * <p>O custo é que todas as entidades caem no mesmo balde, o que só pesa em um {@code Set} com milhares de elementos
+ * (as coleções de associação do JPA são pequenas). Para guardar muitos usuários numa coleção própria, use os ids
+ * ({@code Set<Long>} ou {@code Set<UserId>}), que têm hash por valor.</p>
  */
 @Entity
 @Table(name = "tb_user")
@@ -75,6 +87,8 @@ public class UserEntity {
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(id);
+        // Constante (veja o Javadoc da classe): o id só existe depois do persist, e o hash não pode mudar com a
+        // entidade dentro de um Set.
+        return getClass().hashCode();
     }
 }
